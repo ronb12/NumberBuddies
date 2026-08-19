@@ -2,7 +2,7 @@ import XCTest
 @testable import NumberBuddies
 
 final class VisualHelperTests: XCTestCase {
-    let generator = ProblemGenerator()
+    let generator = ProblemGenerator(ageGroup: .early)
 
     func testAdditionVisualPartsSumToAnswer() {
         for _ in 0..<30 {
@@ -21,16 +21,20 @@ final class VisualHelperTests: XCTestCase {
 
     func testMultiplicationArrayDimensionsMatchAnswer() {
         for _ in 0..<30 {
-            let problem = generator.makeProblem(for: .multiplication, difficulty: 2)
+            let problem = generator.makeProblem(for: .multiplication, difficulty: 3)
             XCTAssertEqual(problem.operandA * problem.operandB, problem.answer)
         }
     }
 
     func testDivisionSharingGroupsMatchDividend() {
         for _ in 0..<30 {
-            let problem = generator.makeProblem(for: .division, difficulty: 2)
+            let problem = generator.makeProblem(for: .division, difficulty: 3)
             XCTAssertEqual(problem.operandA / problem.operandB, problem.answer)
-            XCTAssertEqual(problem.operandB * problem.answer, problem.operandA)
+            if problem.hasRemainder {
+                XCTAssertEqual(problem.operandA % problem.operandB, problem.remainder)
+            } else {
+                XCTAssertEqual(problem.operandB * problem.answer, problem.operandA)
+            }
         }
     }
 }

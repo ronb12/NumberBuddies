@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ResultView: View {
-    let operation: MathOperation
+    let title: String
+    let accent: Color
     let stars: Int
     let correct: Int
     let total: Int
@@ -23,6 +24,12 @@ struct ResultView: View {
                 .foregroundStyle(AppTheme.ink.opacity(0.75))
                 .multilineTextAlignment(.center)
 
+            if title != "Mixed Review" {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(accent)
+            }
+
             VStack(spacing: 12) {
                 Button(action: onPlayAgain) {
                     Text("Play again")
@@ -30,7 +37,7 @@ struct ResultView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: AppTheme.minTapSize)
-                        .background(AppTheme.color(for: operation), in: RoundedRectangle(cornerRadius: 16))
+                        .background(accent, in: RoundedRectangle(cornerRadius: 16))
                 }
 
                 Button(action: onHome) {

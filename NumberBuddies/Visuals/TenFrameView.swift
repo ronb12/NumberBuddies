@@ -2,27 +2,43 @@ import SwiftUI
 
 struct TenFrameView: View {
     let count: Int
-    let highlightCount: Int?
     let crossedOutCount: Int?
     var accent: Color = AppTheme.coral
+    var compact: Bool = false
+    var showEmptySlots: Bool = true
 
     init(
         total: Int,
-        highlight: Int? = nil,
         crossedOut: Int? = nil,
-        accent: Color = AppTheme.coral
+        accent: Color = AppTheme.coral,
+        compact: Bool = false,
+        showEmptySlots: Bool = true
     ) {
         self.count = total
-        self.highlightCount = highlight
         self.crossedOutCount = crossedOut
         self.accent = accent
+        self.compact = compact
+        self.showEmptySlots = showEmptySlots
     }
 
+    private var dotSize: CGFloat { compact ? 14 : 22 }
+    private var rowSpacing: CGFloat { compact ? 4 : 8 }
+    private var slotSpacing: CGFloat { compact ? 4 : 8 }
+    private var dotsPerRow: Int { showEmptySlots ? 10 : (compact ? 5 : 10) }
+
     var body: some View {
-        let frames = max(1, Int(ceil(Double(count) / 10.0)))
-        VStack(spacing: 8) {
+        if showEmptySlots {
+            tenFrameLayout
+        } else {
+            counterOnlyLayout
+        }
+    }
+
+    private var tenFrameLayout: some View {
+        let frames = max(1, Int(ceil(Double(max(count, 1)) / 10.0)))
+        return VStack(spacing: rowSpacing) {
             ForEach(0..<frames, id: \.self) { frameIndex in
-                HStack(spacing: 8) {
+                HStack(spacing: slotSpacing) {
                     ForEach(0..<10, id: \.self) { slot in
                         let index = frameIndex * 10 + slot
                         counter(at: index)
@@ -33,20 +49,41 @@ struct TenFrameView: View {
         .accessibilityLabel(accessibilityDescription)
     }
 
+    private var counterOnlyLayout: some View {
+        let rows = max(1, Int(ceil(Double(max(count, 1)) / Double(dotsPerRow))))
+        return VStack(spacing: rowSpacing) {
+            ForEach(0..<rows, id: \.self) { rowIndex in
+                HStack(spacing: slotSpacing) {
+                    ForEach(dotsInRow(rowIndex), id: \.self) { index in
+                        counter(at: index)
+                    }
+                }
+            }
+        }
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private func dotsInRow(_ rowIndex: Int) -> [Int] {
+        let start = rowIndex * dotsPerRow
+        let end = min(start + dotsPerRow, count)
+        guard start < end else { return [] }
+        return Array(start..<end)
+    }
+
     @ViewBuilder
     private func counter(at index: Int) -> some View {
         ZStack {
             Circle()
                 .fill(fillColor(for: index))
-                .frame(width: 22, height: 22)
+                .frame(width: dotSize, height: dotSize)
                 .overlay {
                     Circle()
-                        .stroke(strokeColor(for: index), lineWidth: 1.5)
+                        .stroke(strokeColor(for: index), lineWidth: compact ? 1 : 1.5)
                 }
 
             if isCrossedOut(index) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: compact ? 7 : 10, weight: .bold))
                     .foregroundStyle(AppTheme.ink.opacity(0.45))
             }
         }
@@ -61,9 +98,6 @@ struct TenFrameView: View {
         guard index < count else { return .clear }
         if isCrossedOut(index) {
             return accent.opacity(0.15)
-        }
-        if let highlightCount, highlightCount > 0, index >= count - highlightCount {
-            return accent.opacity(0.45)
         }
         return accent
     }

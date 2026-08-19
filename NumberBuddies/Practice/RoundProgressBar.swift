@@ -4,6 +4,7 @@ struct RoundProgressBar: View {
     let current: Int
     let total: Int
     var accent: Color = AppTheme.teal
+    var subtitle: String?
 
     private var progress: Double {
         guard total > 0 else { return 0 }
@@ -27,8 +28,21 @@ struct RoundProgressBar: View {
             Text("Question \(current) of \(total)")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.ink.opacity(0.6))
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(accent)
+            }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Question \(current) of \(total)")
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        if let subtitle {
+            return "Question \(current) of \(total). \(subtitle)"
+        }
+        return "Question \(current) of \(total)"
     }
 }

@@ -8,10 +8,16 @@ struct PracticeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    let operation: MathOperation
+    let mode: PracticeMode
+    let profileId: UUID
+    let ageGroup: AgeGroup
 
     @State private var viewModel: PracticeViewModel?
     @State private var didSaveRound = false
+
+    private var isCompactPhone: Bool {
+        horizontalSizeClass == .compact
+    }
 
     var body: some View {
         ZStack {
@@ -26,15 +32,14 @@ struct PracticeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text(operation.title)
+                Text(toolbarTitle(for: viewModel))
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(AppTheme.color(for: operation))
+                    .foregroundStyle(toolbarAccent(for: viewModel))
             }
         }
         .task {
             if viewModel == nil {
-                let difficulty = ProgressStore.difficulty(for: operation, context: modelContext)
-                viewModel = PracticeViewModel(operation: operation, difficulty: difficulty)
+                viewModel = makeViewModel()
             }
         }
         .onDisappear {
@@ -48,20 +53,22 @@ struct PracticeView: View {
         case .playing:
             playingView(viewModel)
         case let .finished(stars, correct, total):
-            ResultView(
-                operation: operation,
-                stars: stars,
-                correct: correct,
-                total: total,
-                onPlayAgain: {
-                    didSaveRound = false
-                    let difficulty = ProgressStore.difficulty(for: operation, context: modelContext)
-                    self.viewModel = PracticeViewModel(operation: operation, difficulty: difficulty)
-                },
-                onHome: { dismiss() }
-            )
+            ScrollView {
+                ResultView(
+                    title: mode.title,
+                    accent: toolbarAccent(for: viewModel),
+                    stars: stars,
+                    correct: correct,
+                    total: total,
+                    onPlayAgain: {
+                        didSaveRound = false
+                        self.viewModel = makeViewModel()
+                    },
+                    onHome: { dismiss() }
+                )
+            }
             .onAppear {
-                saveRoundIfNeeded(stars: stars, correct: correct)
+                saveRoundIfNeeded(stars: stars, correct: correct, total: total, viewModel: viewModel)
             }
         }
     }
@@ -70,20 +77,32 @@ struct PracticeView: View {
     private func playingView(_ viewModel: PracticeViewModel) -> some View {
         if let problem = viewModel.currentProblem {
             Group {
-                if horizontalSizeClass == .regular {
+                if isCompactPhone {
+                    VStack(spacing: 0) {
+                        ScrollView {
+                            visualSection(problem: problem, viewModel: viewModel)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                                .padding(.bottom, 12)
+                        }
+
+                        controlSection(viewModel: viewModel)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 8)
+                            .background(AppTheme.cream.opacity(0.95))
+                    }
+                } else {
                     HStack(alignment: .top, spacing: 32) {
-                        visualSection(problem: problem, viewModel: viewModel)
-                            .frame(maxWidth: .infinity)
+                        ScrollView {
+                            visualSection(problem: problem, viewModel: viewModel)
+                        }
+                        .frame(maxWidth: .infinity)
+
                         controlSection(viewModel: viewModel)
                             .frame(maxWidth: 420)
                     }
                     .padding(32)
-                } else {
-                    VStack(spacing: 20) {
-                        visualSection(problem: problem, viewModel: viewModel)
-                        controlSection(viewModel: viewModel)
-                    }
-                    .padding(20)
                 }
             }
             .onChange(of: viewModel.currentIndex) { _, _ in
@@ -97,11 +116,14 @@ struct PracticeView: View {
 
     @ViewBuilder
     private func visualSection(problem: MathProblem, viewModel: PracticeViewModel) -> some View {
-        VStack(spacing: 16) {
+        let accent = AppTheme.color(for: viewModel.accentOperation)
+
+        VStack(spacing: isCompactPhone ? 10 : 16) {
             RoundProgressBar(
                 current: viewModel.currentIndex + 1,
                 total: viewModel.problems.count,
-                accent: AppTheme.color(for: operation)
+                accent: accent,
+                subtitle: viewModel.challengeProgressLabel
             )
 
             Text(problem.prompt)
@@ -111,17 +133,15 @@ struct PracticeView: View {
                     design: .rounded
                 ))
                 .foregroundStyle(AppTheme.ink)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.5)
+                .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .accessibilityLabel(problem.spokenText)
 
-            Toggle("Show picture helper", isOn: Bindable(viewModel).showVisual)
-                .font(.subheadline.weight(.medium))
-                .tint(AppTheme.color(for: operation))
-                .padding(.horizontal, 4)
+            PictureHelperToggle(isOn: Bindable(viewModel).showVisual, accent: accent)
 
             if viewModel.showVisual || viewModel.showHint {
-                ProblemVisualView(problem: problem)
+                ProblemVisualView(problem: problem, compact: isCompactPhone)
                     .transition(.opacity)
             }
 
@@ -132,7 +152,6 @@ struct PracticeView: View {
                 Text(message)
                     .font(.headline)
                     .foregroundStyle(viewModel.showHint ? AppTheme.coral : AppTheme.teal)
-                    .padding(.top, 4)
             }
         }
     }
@@ -143,8 +162,9 @@ struct PracticeView: View {
             input: Bindable(viewModel).input,
             onSubmit: { viewModel.submit() },
             onClear: { viewModel.clearInput() },
-            accent: AppTheme.color(for: operation),
-            isDisabled: viewModel.isAdvancing
+            accent: AppTheme.color(for: viewModel.accentOperation),
+            isDisabled: viewModel.isAdvancing,
+            compact: isCompactPhone
         )
         .modifier(ShakeEffect(animating: viewModel.shakeWrong && !reduceMotion))
         .onChange(of: viewModel.shakeWrong) { _, shaking in
@@ -157,23 +177,136 @@ struct PracticeView: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var promptFontSize: CGFloat {
-        let base: CGFloat = horizontalSizeClass == .regular ? 48 : 40
-        if dynamicTypeSize.isAccessibilitySize {
-            return base * 0.75
+    private func toolbarTitle(for viewModel: PracticeViewModel?) -> String {
+        if case .mixedReview = mode, let viewModel {
+            return viewModel.accentOperation.title
         }
-        return base
+        return mode.title
     }
 
-    private func saveRoundIfNeeded(stars: Int, correct: Int) {
+    private func toolbarAccent(for viewModel: PracticeViewModel?) -> Color {
+        if case .mixedReview = mode, let viewModel {
+            return AppTheme.color(for: viewModel.accentOperation)
+        }
+        return mode.accentColor
+    }
+
+    private var promptFontSize: CGFloat {
+        if isCompactPhone {
+            return dynamicTypeSize.isAccessibilitySize ? 28 : 34
+        }
+        return dynamicTypeSize.isAccessibilitySize ? 36 : 48
+    }
+
+    private func makeViewModel() -> PracticeViewModel {
+        let profile = ProfileStore.profile(with: profileId, context: modelContext)
+        let unlocked = profile.map { ProgressStore.unlockedOperations(for: $0, context: modelContext) } ?? ageGroup.homeOperations
+
+        switch mode {
+        case .operation(let operation):
+            let difficulty = ProgressStore.difficulty(
+                for: operation,
+                profileId: profileId,
+                context: modelContext
+            )
+            return PracticeViewModel(mode: mode, ageGroup: ageGroup, difficulty: difficulty)
+        case .mixedReview:
+            let average = ProgressStore.averageDifficulty(
+                profileId: profileId,
+                operations: unlocked,
+                context: modelContext
+            )
+            return PracticeViewModel(
+                mode: mode,
+                ageGroup: ageGroup,
+                difficulty: average,
+                mixedOperations: unlocked,
+                mixedDifficulty: average
+            )
+        case .timesTableChallenge:
+            return PracticeViewModel(mode: mode, ageGroup: ageGroup, difficulty: 1)
+        }
+    }
+
+    private func saveRoundIfNeeded(stars: Int, correct: Int, total: Int, viewModel: PracticeViewModel) {
         guard !didSaveRound else { return }
         didSaveRound = true
-        ProgressStore.recordRound(
-            operation: operation,
-            starsEarned: stars,
-            correctCount: correct,
+
+        if let profile = ProfileStore.profile(with: profileId, context: modelContext) {
+            ProfileStore.recordRoundStats(
+                profile: profile,
+                correct: correct,
+                total: total,
+                context: modelContext
+            )
+        }
+
+        SessionStore.recordSession(
+            profileId: profileId,
+            mode: mode,
+            correct: correct,
+            total: total,
+            durationSeconds: viewModel.sessionDurationSeconds(),
+            missedByOperation: viewModel.missedCounts(),
+            operationResults: viewModel.operationResults(),
             context: modelContext
         )
+
+        switch mode {
+        case .operation(let operation):
+            ProgressStore.recordRound(
+                profileId: profileId,
+                operation: operation,
+                starsEarned: stars,
+                correctCount: correct,
+                totalQuestions: total,
+                context: modelContext
+            )
+        case .mixedReview:
+            ProgressStore.recordMixedRound(
+                profileId: profileId,
+                results: viewModel.mixedResults(),
+                context: modelContext
+            )
+        case .timesTableChallenge:
+            ProgressStore.recordRound(
+                profileId: profileId,
+                operation: .multiplication,
+                starsEarned: stars,
+                correctCount: correct,
+                totalQuestions: total,
+                context: modelContext
+            )
+        }
+    }
+}
+
+private struct PictureHelperToggle: View {
+    @Binding var isOn: Bool
+    let accent: Color
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Label {
+                Text("Show picture helper")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.ink)
+            } icon: {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .foregroundStyle(accent)
+            }
+        }
+        .tint(accent)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.white, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppTheme.ink.opacity(0.14), lineWidth: 1)
+        )
+        .colorScheme(.light)
+        .accessibilityLabel("Show picture helper")
+        .accessibilityValue(isOn ? "On" : "Off")
     }
 }
 
@@ -201,7 +334,7 @@ private struct ShakeEffect: ViewModifier {
 
 #Preview {
     NavigationStack {
-        PracticeView(operation: .addition)
+        PracticeView(mode: .operation(.addition), profileId: UUID(), ageGroup: .early)
     }
-    .modelContainer(for: KidProgress.self, inMemory: true)
+    .modelContainer(for: [KidProfile.self, KidProgress.self], inMemory: true)
 }

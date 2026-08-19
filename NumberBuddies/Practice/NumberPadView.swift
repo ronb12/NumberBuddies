@@ -30,6 +30,11 @@ struct NumberPadView: View {
     let onClear: () -> Void
     var accent: Color = AppTheme.teal
     var isDisabled: Bool = false
+    var compact: Bool = false
+
+    private var keyHeight: CGFloat { compact ? 48 : AppTheme.minTapSize }
+    private var rowSpacing: CGFloat { compact ? 6 : 10 }
+    private var displayHeight: CGFloat { compact ? 48 : 56 }
 
     private let rows: [[PadKey]] = [
         [.digit("1"), .digit("2"), .digit("3")],
@@ -39,25 +44,25 @@ struct NumberPadView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: rowSpacing) {
             Group {
                 if input.isEmpty {
                     Image(systemName: "circle.dashed")
-                        .font(.system(size: 32, weight: .regular))
+                        .font(.system(size: compact ? 24 : 32, weight: .regular))
                         .foregroundStyle(AppTheme.ink.opacity(0.25))
                 } else {
                     Text(input)
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .font(.system(size: compact ? 36 : 44, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.ink)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: displayHeight)
             .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
             .accessibilityLabel("Your answer: \(input.isEmpty ? "empty" : input)")
 
             ForEach(rows, id: \.self) { row in
-                HStack(spacing: 10) {
+                HStack(spacing: rowSpacing) {
                     ForEach(row, id: \.self) { key in
                         Button {
                             guard !isDisabled else { return }
@@ -66,7 +71,7 @@ struct NumberPadView: View {
                         } label: {
                             keyLabel(for: key)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: AppTheme.minTapSize)
+                                .frame(height: keyHeight)
                                 .background(buttonColor(for: key), in: RoundedRectangle(cornerRadius: 14))
                         }
                         .accessibilityLabel(accessibilityLabel(for: key))
@@ -81,11 +86,11 @@ struct NumberPadView: View {
     private func keyLabel(for key: PadKey) -> some View {
         if key.isSubmit {
             Image(systemName: "checkmark")
-                .font(.title2.weight(.bold))
+                .font(compact ? .headline.weight(.bold) : .title2.weight(.bold))
                 .foregroundStyle(.white)
         } else {
             Text(key.label)
-                .font(.title2.weight(.bold))
+                .font(compact ? .headline.weight(.bold) : .title2.weight(.bold))
                 .foregroundStyle(AppTheme.ink)
         }
     }
