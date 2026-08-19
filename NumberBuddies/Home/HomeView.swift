@@ -4,7 +4,8 @@ import SwiftUI
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var progressItems: [KidProgress] = []
+    @Query(sort: \KidProgress.operationRaw) private var progressItems: [KidProgress]
+    @State private var showSettings = false
 
     private var totalStars: Int {
         progressItems.reduce(0) { $0 + $1.stars }
@@ -25,12 +26,24 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .foregroundStyle(AppTheme.ink.opacity(0.55))
+                        .padding(12)
+                        .background(.white.opacity(0.85), in: Circle())
+                }
+                .padding(.trailing, horizontalSizeClass == .regular ? 48 : 20)
+                .padding(.top, 8)
+                .accessibilityLabel("Settings")
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
         }
-        .onAppear(perform: reloadProgress)
-    }
-
-    private func reloadProgress() {
-        progressItems = (try? modelContext.fetch(FetchDescriptor<KidProgress>())) ?? []
     }
 
     private var header: some View {
@@ -41,9 +54,12 @@ struct HomeView: View {
                     Text("Number Buddies")
                         .font(.system(size: horizontalSizeClass == .regular ? 40 : 32, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.ink)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
                     Text("Let's practice math!")
                         .font(.title3.weight(.medium))
                         .foregroundStyle(AppTheme.ink.opacity(0.7))
+                        .minimumScaleFactor(0.8)
                 }
                 Spacer()
             }
@@ -74,7 +90,8 @@ struct HomeView: View {
                 } label: {
                     OperationCard(
                         operation: operation,
-                        stars: stars(for: operation)
+                        stars: stars(for: operation),
+                        difficulty: difficulty(for: operation)
                     )
                 }
                 .buttonStyle(.plain)
@@ -85,11 +102,16 @@ struct HomeView: View {
     private func stars(for operation: MathOperation) -> Int {
         progressItems.first(where: { $0.operationRaw == operation.rawValue })?.stars ?? 0
     }
+
+    private func difficulty(for operation: MathOperation) -> Int {
+        progressItems.first(where: { $0.operationRaw == operation.rawValue })?.difficulty ?? 1
+    }
 }
 
 struct OperationCard: View {
     let operation: MathOperation
     let stars: Int
+    let difficulty: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -99,19 +121,28 @@ struct OperationCard: View {
                     .foregroundStyle(.white)
                     .accessibilityHidden(true)
                 Spacer()
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(AppTheme.sunny)
-                        .font(.caption)
-                    Text("\(stars)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.ink.opacity(0.8))
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(AppTheme.sunny)
+                            .font(.caption)
+                        Text("\(stars)")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.95))
+                    }
+                    Text("Level \(difficulty)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.white.opacity(0.2), in: Capsule())
                 }
             }
 
             Text(operation.title)
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.white)
+                .minimumScaleFactor(0.8)
 
             Text("Tap to play")
                 .font(.subheadline.weight(.medium))
@@ -122,7 +153,7 @@ struct OperationCard: View {
         .background(AppTheme.color(for: operation), in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
         .shadow(color: AppTheme.color(for: operation).opacity(0.25), radius: 8, y: 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(operation.title). \(stars) stars earned.")
+        .accessibilityLabel("\(operation.title). Level \(difficulty). \(stars) stars earned.")
         .accessibilityHint(operation.accessibilityHint)
     }
 }

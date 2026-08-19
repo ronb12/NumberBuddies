@@ -44,5 +44,12 @@ struct ResultView: View {
             }
         }
         .padding(24)
+        .onAppear {
+            if correct >= total - 1 {
+                FeedbackService.correctAnswer()
+            } else {
+                FeedbackService.lightTap()
+            }
+        }
     }
 }

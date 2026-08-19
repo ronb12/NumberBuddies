@@ -29,6 +29,7 @@ struct NumberPadView: View {
     let onSubmit: () -> Void
     let onClear: () -> Void
     var accent: Color = AppTheme.teal
+    var isDisabled: Bool = false
 
     private let rows: [[PadKey]] = [
         [.digit("1"), .digit("2"), .digit("3")],
@@ -59,6 +60,8 @@ struct NumberPadView: View {
                 HStack(spacing: 10) {
                     ForEach(row, id: \.self) { key in
                         Button {
+                            guard !isDisabled else { return }
+                            FeedbackService.lightTap()
                             handleTap(key)
                         } label: {
                             keyLabel(for: key)
@@ -67,6 +70,7 @@ struct NumberPadView: View {
                                 .background(buttonColor(for: key), in: RoundedRectangle(cornerRadius: 14))
                         }
                         .accessibilityLabel(accessibilityLabel(for: key))
+                        .disabled(isDisabled)
                     }
                 }
             }
@@ -91,6 +95,7 @@ struct NumberPadView: View {
         case .clear:
             onClear()
         case .submit:
+            guard !input.isEmpty else { return }
             onSubmit()
         case .digit(let value):
             guard input.count < 4 else { return }

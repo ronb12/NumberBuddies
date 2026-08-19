@@ -21,6 +21,8 @@ final class PracticeViewModel {
     var showVisual = true
     var showHint = false
     var shakeWrong = false
+    var showCelebration = false
+    var isAdvancing = false
     var phase: PracticePhase = .playing
     var feedbackMessage: String?
 
@@ -38,36 +40,53 @@ final class PracticeViewModel {
         "Question \(min(currentIndex + 1, problems.count)) of \(problems.count)"
     }
 
-    func appendDigit(_ digit: String) {
-        guard input.count < 4 else { return }
-        input += digit
-    }
-
     func clearInput() {
         input = ""
     }
 
     func submit() {
-        guard let problem = currentProblem, let value = Int(input) else { return }
+        guard !isAdvancing, let problem = currentProblem, let value = Int(input), !input.isEmpty else { return }
 
         if value == problem.answer {
-            correctCount += 1
-            starsEarned += 1
-            feedbackMessage = "Great job!"
-            advance()
+            handleCorrect()
         } else {
-            attempts += 1
-            shakeWrong = true
-            if attempts >= 2 {
-                showHint = true
-                feedbackMessage = "The answer is \(problem.answer)."
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                    self?.advanceAfterMiss()
-                }
-            } else {
-                feedbackMessage = "Try again!"
-                input = ""
+            handleWrong(problem: problem)
+        }
+    }
+
+    private func handleCorrect() {
+        correctCount += 1
+        starsEarned += 1
+        showCelebration = true
+        feedbackMessage = nil
+        isAdvancing = true
+        FeedbackService.correctAnswer()
+
+        Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            showCelebration = false
+            advance()
+            isAdvancing = false
+        }
+    }
+
+    private func handleWrong(problem: MathProblem) {
+        attempts += 1
+        shakeWrong = true
+        FeedbackService.wrongAnswer()
+
+        if attempts >= 2 {
+            showHint = true
+            feedbackMessage = "The answer is \(problem.answer)."
+            isAdvancing = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                advanceAfterMiss()
+                isAdvancing = false
             }
+        } else {
+            feedbackMessage = "Try again!"
+            input = ""
         }
     }
 
@@ -81,6 +100,7 @@ final class PracticeViewModel {
     private func advance() {
         attempts = 0
         showHint = false
+        showCelebration = false
         feedbackMessage = nil
         input = ""
         shakeWrong = false
@@ -94,5 +114,10 @@ final class PracticeViewModel {
 
     func resetShake() {
         shakeWrong = false
+    }
+
+    func speakCurrentProblem() {
+        guard let problem = currentProblem, AppSettings.readAloudEnabled else { return }
+        SpeechService.shared.speak(problem.spokenText)
     }
 }

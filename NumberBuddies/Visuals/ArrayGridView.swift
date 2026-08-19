@@ -5,9 +5,11 @@ struct ArrayGridView: View {
     let columns: Int
     var accent: Color = AppTheme.sunny
 
+    private var total: Int { rows * columns }
+
     var body: some View {
         VStack(spacing: 6) {
-            ForEach(0..<rows, id: \.self) { row in
+            ForEach(0..<rows, id: \.self) { _ in
                 HStack(spacing: 6) {
                     ForEach(0..<columns, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 6)
@@ -17,6 +19,6 @@ struct ArrayGridView: View {
                 }
             }
         }
-        .accessibilityLabel("Array showing \(rows) rows of \(columns)")
+        .accessibilityLabel("\(rows) rows of \(columns), \(total) in all")
     }
 }

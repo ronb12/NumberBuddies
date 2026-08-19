@@ -6,6 +6,7 @@ struct PracticeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let operation: MathOperation
 
@@ -73,23 +74,23 @@ struct PracticeView: View {
                     HStack(alignment: .top, spacing: 32) {
                         visualSection(problem: problem, viewModel: viewModel)
                             .frame(maxWidth: .infinity)
-                        controlSection(problem: problem, viewModel: viewModel)
+                        controlSection(viewModel: viewModel)
                             .frame(maxWidth: 420)
                     }
                     .padding(32)
                 } else {
                     VStack(spacing: 20) {
                         visualSection(problem: problem, viewModel: viewModel)
-                        controlSection(problem: problem, viewModel: viewModel)
+                        controlSection(viewModel: viewModel)
                     }
                     .padding(20)
                 }
             }
             .onChange(of: viewModel.currentIndex) { _, _ in
-                SpeechService.shared.speak(problem.spokenText)
+                viewModel.speakCurrentProblem()
             }
             .onAppear {
-                SpeechService.shared.speak(problem.spokenText)
+                viewModel.speakCurrentProblem()
             }
         }
     }
@@ -97,12 +98,18 @@ struct PracticeView: View {
     @ViewBuilder
     private func visualSection(problem: MathProblem, viewModel: PracticeViewModel) -> some View {
         VStack(spacing: 16) {
-            Text(viewModel.progressText)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.ink.opacity(0.6))
+            RoundProgressBar(
+                current: viewModel.currentIndex + 1,
+                total: viewModel.problems.count,
+                accent: AppTheme.color(for: operation)
+            )
 
             Text(problem.prompt)
-                .font(.system(size: horizontalSizeClass == .regular ? 48 : 40, weight: .bold, design: .rounded))
+                .font(.system(
+                    size: promptFontSize,
+                    weight: .bold,
+                    design: .rounded
+                ))
                 .foregroundStyle(AppTheme.ink)
                 .minimumScaleFactor(0.6)
                 .multilineTextAlignment(.center)
@@ -118,7 +125,10 @@ struct PracticeView: View {
                     .transition(.opacity)
             }
 
-            if let message = viewModel.feedbackMessage {
+            if viewModel.showCelebration {
+                CorrectBurstView()
+                    .transition(.scale.combined(with: .opacity))
+            } else if let message = viewModel.feedbackMessage {
                 Text(message)
                     .font(.headline)
                     .foregroundStyle(viewModel.showHint ? AppTheme.coral : AppTheme.teal)
@@ -128,12 +138,13 @@ struct PracticeView: View {
     }
 
     @ViewBuilder
-    private func controlSection(problem: MathProblem, viewModel: PracticeViewModel) -> some View {
+    private func controlSection(viewModel: PracticeViewModel) -> some View {
         NumberPadView(
             input: Bindable(viewModel).input,
             onSubmit: { viewModel.submit() },
             onClear: { viewModel.clearInput() },
-            accent: AppTheme.color(for: operation)
+            accent: AppTheme.color(for: operation),
+            isDisabled: viewModel.isAdvancing
         )
         .modifier(ShakeEffect(animating: viewModel.shakeWrong && !reduceMotion))
         .onChange(of: viewModel.shakeWrong) { _, shaking in
@@ -144,6 +155,14 @@ struct PracticeView: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private var promptFontSize: CGFloat {
+        let base: CGFloat = horizontalSizeClass == .regular ? 48 : 40
+        if dynamicTypeSize.isAccessibilitySize {
+            return base * 0.75
+        }
+        return base
     }
 
     private func saveRoundIfNeeded(stars: Int, correct: Int) {
