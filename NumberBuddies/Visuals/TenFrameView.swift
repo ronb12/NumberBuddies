@@ -73,13 +73,17 @@ struct TenFrameView: View {
     @ViewBuilder
     private func counter(at index: Int) -> some View {
         ZStack {
-            Circle()
-                .fill(fillColor(for: index))
-                .frame(width: dotSize, height: dotSize)
-                .overlay {
-                    Circle()
-                        .stroke(strokeColor(for: index), lineWidth: compact ? 1 : 1.5)
-                }
+            if index < count {
+                AnimatedCounterDot(
+                    color: isCrossedOut(index) ? accent.opacity(0.15) : accent,
+                    size: dotSize,
+                    index: index
+                )
+            } else {
+                Circle()
+                    .stroke(strokeColor(for: index), lineWidth: compact ? 1 : 1.5)
+                    .frame(width: dotSize, height: dotSize)
+            }
 
             if isCrossedOut(index) {
                 Image(systemName: "xmark")

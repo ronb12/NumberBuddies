@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Query(sort: \KidProfile.createdAt) private var profiles: [KidProfile]
 
     @State private var readAloud = AppSettings.readAloudEnabled
+    @State private var cheerSounds = AppSettings.cheerSoundsEnabled
     @State private var showResetConfirm = false
     @State private var showParentReport = false
     @State private var showProfilePicker = false
@@ -43,7 +44,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Practice") {
+                Section {
                     Toggle("Read problems aloud", isOn: $readAloud)
                         .onChange(of: readAloud) { _, newValue in
                             AppSettings.readAloudEnabled = newValue
@@ -51,6 +52,15 @@ struct SettingsView: View {
                                 SpeechService.shared.stop()
                             }
                         }
+                    Toggle("Cheer sounds", isOn: $cheerSounds)
+                        .onChange(of: cheerSounds) { _, newValue in
+                            AppSettings.cheerSoundsEnabled = newValue
+                            if !newValue {
+                                CheerSoundService.shared.stop()
+                            }
+                        }
+                } footer: {
+                    Text("Cheer sounds play a short celebration clip when an answer is correct. Read aloud adds friendly voice guidance for problems and helpers.")
                 }
 
                 Section("Family") {

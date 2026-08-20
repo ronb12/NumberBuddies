@@ -44,6 +44,7 @@ struct PracticeView: View {
         }
         .onDisappear {
             SpeechService.shared.stop()
+            CheerSoundService.shared.stop()
         }
     }
 
@@ -108,6 +109,11 @@ struct PracticeView: View {
             .onChange(of: viewModel.currentIndex) { _, _ in
                 viewModel.speakCurrentProblem()
             }
+            .onChange(of: viewModel.showVisual) { _, isOn in
+                if isOn, let problem = viewModel.currentProblem {
+                    viewModel.speakHelperIntro(for: problem)
+                }
+            }
             .onAppear {
                 viewModel.speakCurrentProblem()
             }
@@ -138,10 +144,28 @@ struct PracticeView: View {
                 .multilineTextAlignment(.center)
                 .accessibilityLabel(problem.spokenText)
 
-            PictureHelperToggle(isOn: Bindable(viewModel).showVisual, accent: accent)
+            PictureHelperToggle(
+                isOn: Bindable(viewModel).showVisual,
+                accent: accent,
+                usesPaperWork: PaperAlgorithm.needsPaperWork(for: problem)
+            )
 
-            if viewModel.showVisual || viewModel.showHint {
-                ProblemVisualView(problem: problem, compact: isCompactPhone)
+            if PaperAlgorithm.needsPaperWork(for: problem),
+               viewModel.showVisual || viewModel.showHint,
+               let work = PaperAlgorithm.work(for: problem, revealAnswer: viewModel.showHint) {
+                PaperWorkView(
+                    work: work,
+                    accent: accent,
+                    compact: isCompactPhone,
+                    revealAnswer: viewModel.showHint
+                )
+                .transition(.opacity)
+            } else if viewModel.showVisual || viewModel.showHint {
+                ProblemVisualView(
+                    problem: problem,
+                    compact: isCompactPhone,
+                    revealAnswer: viewModel.showHint
+                )
                     .transition(.opacity)
             }
 
@@ -223,7 +247,7 @@ struct PracticeView: View {
                 mixedOperations: unlocked,
                 mixedDifficulty: average
             )
-        case .timesTableChallenge:
+        case .mathChallenge:
             return PracticeViewModel(mode: mode, ageGroup: ageGroup, difficulty: 1)
         }
     }
@@ -268,45 +292,16 @@ struct PracticeView: View {
                 results: viewModel.mixedResults(),
                 context: modelContext
             )
-        case .timesTableChallenge:
+        case .mathChallenge(let kind):
             ProgressStore.recordRound(
                 profileId: profileId,
-                operation: .multiplication,
+                operation: kind.operation,
                 starsEarned: stars,
                 correctCount: correct,
                 totalQuestions: total,
                 context: modelContext
             )
         }
-    }
-}
-
-private struct PictureHelperToggle: View {
-    @Binding var isOn: Bool
-    let accent: Color
-
-    var body: some View {
-        Toggle(isOn: $isOn) {
-            Label {
-                Text("Show picture helper")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.ink)
-            } icon: {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .foregroundStyle(accent)
-            }
-        }
-        .tint(accent)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.white, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(AppTheme.ink.opacity(0.14), lineWidth: 1)
-        )
-        .colorScheme(.light)
-        .accessibilityLabel("Show picture helper")
-        .accessibilityValue(isOn ? "On" : "Off")
     }
 }
 

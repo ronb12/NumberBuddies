@@ -32,6 +32,7 @@ final class PracticeViewModel {
     init(mode: PracticeMode, ageGroup: AgeGroup, difficulty: Int, mixedOperations: [MathOperation]? = nil, mixedDifficulty: Int? = nil) {
         self.mode = mode
         self.generator = ProblemGenerator(ageGroup: ageGroup)
+        self.showVisual = ageGroup == .preK
 
         switch mode {
         case .operation(let operation):
@@ -40,19 +41,19 @@ final class PracticeViewModel {
             let level = mixedDifficulty ?? difficulty
             let operations = mixedOperations ?? ageGroup.availableOperations(for: level)
             problems = generator.mixedRound(operations: operations, difficulty: level)
-        case .timesTableChallenge(let kind):
-            problems = TimesTableGenerator.problems(for: kind)
+        case .mathChallenge(let kind):
+            problems = MathChallengeGenerator.problems(for: kind)
         }
     }
 
-    var challengeKind: TimesTableChallengeKind? {
-        if case .timesTableChallenge(let kind) = mode { return kind }
+    var challengeKind: MathChallengeKind? {
+        if case .mathChallenge(let kind) = mode { return kind }
         return nil
     }
 
     var challengeProgressLabel: String? {
         guard let kind = challengeKind, let problem = currentProblem else { return nil }
-        return TimesTableGenerator.challengeLabel(for: problem, index: currentIndex, kind: kind)
+        return MathChallengeGenerator.challengeLabel(for: problem, index: currentIndex, kind: kind)
     }
 
     var currentProblem: MathProblem? {
@@ -106,7 +107,9 @@ final class PracticeViewModel {
         feedbackMessage = nil
         isAdvancing = true
         FeedbackService.correctAnswer()
-        SpeechService.shared.speakEncouragement(encouragementPhrase)
+        CheerSoundService.shared.playCheer {
+            SpeechService.shared.speakEncouragement(SpeechService.randomCelebration())
+        }
 
         Task {
             try? await Task.sleep(for: .milliseconds(1200))
@@ -128,11 +131,14 @@ final class PracticeViewModel {
             let answerWord = SpokenNumbers.word(for: problem.answer)
             if problem.operation == .division, problem.hasRemainder, let remainder = problem.remainder {
                 feedbackMessage = "The answer is \(problem.answer) R \(remainder)."
-                SpeechService.shared.speak("That's okay! Each group gets \(answerWord), with \(SpokenNumbers.word(for: remainder)) left over.")
+                SpeechService.shared.speakHint(
+                    "That's okay! Each group gets \(answerWord), with \(SpokenNumbers.word(for: remainder)) left over."
+                )
             } else {
                 feedbackMessage = "The answer is \(problem.answer)."
-                SpeechService.shared.speak("That's okay! The answer is \(answerWord).")
+                SpeechService.shared.speakHint("That's okay! The answer is \(answerWord).")
             }
+            speakHelperSteps(for: problem)
             isAdvancing = true
             Task {
                 try? await Task.sleep(for: .seconds(2))
@@ -141,7 +147,11 @@ final class PracticeViewModel {
             }
         } else {
             feedbackMessage = "Try again!"
-            SpeechService.shared.speakEncouragement("Hmm, try again!")
+            if !showVisual {
+                SpeechService.shared.speakHelper("Need a clue? Turn on the picture helper!")
+            } else {
+                SpeechService.shared.speakRetry(SpeechService.randomRetry())
+            }
             input = ""
         }
     }
@@ -184,12 +194,36 @@ final class PracticeViewModel {
         shakeWrong = false
     }
 
-    private var encouragementPhrase: String {
-        ["Nice work!", "You got it!", "Great job!", "Awesome!", "Way to go!"].randomElement() ?? "Great job!"
-    }
-
     func speakCurrentProblem() {
         guard let problem = currentProblem, AppSettings.readAloudEnabled else { return }
         SpeechService.shared.speak(problem.spokenText)
+    }
+
+    func speakHelperIntro(for problem: MathProblem) {
+        guard AppSettings.readAloudEnabled else { return }
+        if PaperAlgorithm.needsPaperWork(for: problem) {
+            SpeechService.shared.speakHelper("Let's write it out step by step!")
+        } else {
+            SpeechService.shared.speakHelper(SpeechService.helperIntroPhrases.randomElement() ?? "Let's use a picture to help!")
+        }
+    }
+
+    private func speakHelperSteps(for problem: MathProblem) {
+        guard AppSettings.readAloudEnabled else { return }
+        if let work = PaperAlgorithm.work(for: problem, revealAnswer: true),
+           let firstStep = work.explanations.first?.text {
+            SpeechService.shared.speakHelper(firstStep)
+        } else {
+            switch problem.operation {
+            case .addition:
+                SpeechService.shared.speakHelper("Count all the dots together to get \(SpokenNumbers.word(for: problem.answer)).")
+            case .subtraction:
+                SpeechService.shared.speakHelper("Cross out \(SpokenNumbers.word(for: problem.operandB)), then count what's left.")
+            case .multiplication:
+                SpeechService.shared.speakHelper("Count every dot in all the groups.")
+            case .division:
+                SpeechService.shared.speakHelper("Share equally into each group.")
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ProblemVisualView: View {
     let problem: MathProblem
     var compact: Bool = false
+    var revealAnswer: Bool = false
 
     var body: some View {
         VStack(spacing: compact ? 10 : 14) {
@@ -17,7 +18,7 @@ struct ProblemVisualView: View {
                 divisionVisual
             }
 
-            HelperEquationStrip(problem: problem, compact: compact)
+            HelperEquationStrip(problem: problem, compact: compact, revealAnswer: revealAnswer)
         }
         .padding(compact ? 10 : 16)
         .background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 16))
@@ -81,7 +82,9 @@ struct ProblemVisualView: View {
                 .foregroundStyle(AppTheme.ink.opacity(0.35))
 
             HelperGroupBox(
-                title: story?.totalLabel(count: problem.answer) ?? "\(problem.answer) altogether",
+                title: revealAnswer
+                    ? (story?.totalLabel(count: problem.answer) ?? "\(problem.answer) altogether")
+                    : "Count them all",
                 tint: firstColor,
                 compact: compact
             ) {

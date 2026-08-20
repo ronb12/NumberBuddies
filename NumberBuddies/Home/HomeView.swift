@@ -41,8 +41,8 @@ struct HomeView: View {
         unlockedOperations.count >= 3
     }
 
-    private var showsTimesTableChallenges: Bool {
-        unlockedOperations.contains(.multiplication)
+    private var showsMathChallenges: Bool {
+        !unlockedOperations.isEmpty
     }
 
     var body: some View {
@@ -56,8 +56,11 @@ struct HomeView: View {
                         if showsMixedReview {
                             mixedReviewCard
                         }
-                        if showsTimesTableChallenges {
-                            timesTableChallengesCard
+                        if showsMathChallenges {
+                            mathChallengesCard
+                        }
+                        if let profile = activeProfile, !MathTopic.available(for: profile.ageGroup).isEmpty {
+                            exploreMathCard(profile: profile)
                         }
                         operationGrid
                     }
@@ -165,16 +168,29 @@ struct HomeView: View {
         }
     }
 
-    private var timesTableChallengesCard: some View {
+    private func exploreMathCard(profile: KidProfile) -> some View {
+        NavigationLink {
+            TopicExploreView(
+                profileId: profile.id,
+                ageGroup: profile.ageGroup
+            )
+        } label: {
+            ExploreMathHomeCard()
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var mathChallengesCard: some View {
         Group {
             if let profile = activeProfile {
                 NavigationLink {
-                    TimesTableChallengesView(
+                    MathChallengesView(
                         profileId: profile.id,
-                        ageGroup: profile.ageGroup
+                        ageGroup: profile.ageGroup,
+                        unlockedOperations: unlockedOperations
                     )
                 } label: {
-                    TimesTableChallengeHomeCard()
+                    MathChallengeHomeCard()
                 }
                 .buttonStyle(.plain)
             }
@@ -247,19 +263,19 @@ struct HomeView: View {
     }
 }
 
-struct TimesTableChallengeHomeCard: View {
+struct ExploreMathHomeCard: View {
     var body: some View {
         HStack(spacing: 16) {
-            Image(systemName: "tablecells")
+            Image(systemName: "books.vertical.fill")
                 .font(.system(size: 32, weight: .semibold))
                 .foregroundStyle(.white)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Times Table Challenges")
+                Text("Explore Math")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.white)
-                Text("Tables 1–12 in order")
+                Text("Fractions, time, geometry & more")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white.opacity(0.9))
             }
@@ -274,14 +290,52 @@ struct TimesTableChallengeHomeCard: View {
         .frame(maxWidth: .infinity, minHeight: AppTheme.minTapSize * 1.5, alignment: .leading)
         .background(
             LinearGradient(
-                colors: [AppTheme.sunny, AppTheme.coral.opacity(0.85)],
+                colors: [AppTheme.teal, AppTheme.purple.opacity(0.9)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
             in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
         )
-        .shadow(color: AppTheme.sunny.opacity(0.25), radius: 8, y: 4)
-        .accessibilityLabel("Times Table Challenges. Practice multiplication tables 1 through 12 in order.")
+        .shadow(color: AppTheme.teal.opacity(0.25), radius: 8, y: 4)
+        .accessibilityLabel("Explore Math. Fractions, decimals, time, money, geometry, graphs, and word problems.")
+    }
+}
+
+struct MathChallengeHomeCard: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: "flag.fill")
+                .font(.system(size: 32, weight: .semibold))
+                .foregroundStyle(.white)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Math Challenges")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.white)
+                Text("+ − × ÷ facts in order")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: AppTheme.minTapSize * 1.5, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [AppTheme.purple, AppTheme.teal.opacity(0.85)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
+        )
+        .shadow(color: AppTheme.purple.opacity(0.25), radius: 8, y: 4)
+        .accessibilityLabel("Math Challenges. Practice addition, subtraction, multiplication, and division facts in order.")
     }
 }
 

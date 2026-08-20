@@ -1,0 +1,52 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Create App Store Connect app record (run once before first upload)"
+  lane :create_app do
+    produce(
+      app_identifier: "com.bradley.NumberBuddies",
+      app_name: "Number Buddies",
+      language: "English",
+      app_version: "1.0",
+      sku: "numberbuddies-ios",
+      team_id: "4SQJ3AH62S"
+    )
+  end
+
+  desc "Upload existing IPA to TestFlight"
+  lane :upload_testflight do
+    ipa_path = "../build/export/NumberBuddies.ipa"
+    UI.user_error!("Missing IPA at #{ipa_path}. Run archive + export first.") unless File.exist?(ipa_path)
+
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      notify_external_testers: false
+    )
+  end
+
+  desc "Archive, export, and upload to TestFlight"
+  lane :release do
+    build_app(
+      scheme: "NumberBuddies",
+      project: "NumberBuddies.xcodeproj",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build/export",
+      output_name: "NumberBuddies",
+      xcargs: "DEVELOPMENT_TEAM=4SQJ3AH62S",
+      export_options: {
+        method: "app-store-connect",
+        signingStyle: "automatic",
+        teamID: "4SQJ3AH62S",
+        uploadSymbols: true
+      }
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+end

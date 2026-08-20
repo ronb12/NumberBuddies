@@ -1,11 +1,23 @@
 import SwiftData
 import SwiftUI
 
+private enum ReportText {
+    static let ink = AppTheme.ink
+    static let body = AppTheme.ink.opacity(0.92)
+    static let muted = AppTheme.ink.opacity(0.68)
+    static let caption = AppTheme.ink.opacity(0.58)
+}
+
 struct ParentReportView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     let profile: KidProfile
+
+    @State private var shareURL: URL?
+    @State private var showShareSheet = false
+    @State private var showPrintSheet = false
+    @State private var pdfData: Data?
 
     private var report: AcademicProgressReport {
         AcademicReportBuilder.build(profile: profile, context: modelContext)
@@ -32,13 +44,69 @@ struct ParentReportView: View {
                 .padding(.vertical, 16)
             }
             .background(AppTheme.cream.ignoresSafeArea())
+            .colorScheme(.light)
             .navigationTitle("Progress Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button {
+                            exportPDF(action: .share)
+                        } label: {
+                            Label("Share PDF", systemImage: "square.and.arrow.up")
+                        }
+                        Button {
+                            exportPDF(action: .print)
+                        } label: {
+                            Label("Print", systemImage: "printer")
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel("Export progress report")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showShareSheet) {
+                if let shareURL {
+                    ProgressReportShareSheet(items: [shareURL])
+                }
+            }
+            .background {
+                if showPrintSheet, let pdfData {
+                    ProgressReportPrintPresenter(
+                        pdfData: pdfData,
+                        jobName: "\(report.studentName) Progress Report",
+                        isPresented: $showPrintSheet
+                    )
+                    .frame(width: 0, height: 0)
+                }
+            }
+        }
+    }
+
+    private enum PDFAction {
+        case share
+        case print
+    }
+
+    private func exportPDF(action: PDFAction) {
+        let data = ProgressReportPDFExporter.generatePDF(from: report)
+        pdfData = data
+        switch action {
+        case .share:
+            let url = ProgressReportPDFExporter.temporaryFileURL(for: report)
+            do {
+                try data.write(to: url, options: .atomic)
+                shareURL = url
+                showShareSheet = true
+            } catch {
+                shareURL = nil
+            }
+        case .print:
+            showPrintSheet = true
         }
     }
 
@@ -64,17 +132,19 @@ struct ParentReportView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Reporting period")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReportText.caption)
                         Text(report.reportingPeriodLabel)
                             .font(.subheadline.weight(.medium))
+                            .foregroundStyle(ReportText.body)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Report date")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReportText.caption)
                         Text(report.reportDate, style: .date)
                             .font(.subheadline.weight(.medium))
+                            .foregroundStyle(ReportText.body)
                     }
                 }
             }
@@ -98,11 +168,11 @@ struct ParentReportView: View {
                     ProficiencyBadge(level: report.overallProficiency)
                     Text("\(report.overallAccuracy)% accuracy this period")
                         .font(.subheadline)
-                        .foregroundStyle(AppTheme.ink.opacity(0.75))
+                        .foregroundStyle(ReportText.muted)
                     if report.lifetimeAccuracy != report.overallAccuracy {
                         Text("\(report.lifetimeAccuracy)% lifetime accuracy")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReportText.caption)
                     }
                 }
                 Spacer()
@@ -111,7 +181,7 @@ struct ParentReportView: View {
             if !report.hasPeriodActivity {
                 Text("Complete a practice round during this reporting period to unlock period grades.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReportText.muted)
                     .padding(.top, 4)
             }
         }
@@ -135,7 +205,7 @@ struct ParentReportView: View {
             if report.subjects.isEmpty {
                 Text("No subjects unlocked yet.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReportText.muted)
             } else {
                 ForEach(report.subjects) { subject in
                     SubjectGradeRow(subject: subject)
@@ -158,14 +228,14 @@ struct ParentReportView: View {
                         Spacer()
                         Text("Level \(subject.level)/\(subject.maxLevel)")
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReportText.caption)
                     }
                     Text(subject.standardDescription)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReportText.muted)
                     Text(subject.comment)
                         .font(.footnote)
-                        .foregroundStyle(AppTheme.ink.opacity(0.85))
+                        .foregroundStyle(ReportText.body)
                 }
                 .padding(.vertical, 4)
 
@@ -181,16 +251,17 @@ struct ParentReportView: View {
             if report.weeklyLog.isEmpty {
                 Text("No practice logged in the last 7 days.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReportText.muted)
             } else {
                 ForEach(report.weeklyLog) { day in
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(SessionStore.formattedDayLabel(for: day.dayKey))
                                 .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(ReportText.ink)
                             Text("\(day.rounds) round\(day.rounds == 1 ? "" : "s") · \(day.correct)/\(day.total) correct")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReportText.muted)
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
@@ -199,7 +270,7 @@ struct ParentReportView: View {
                                 .foregroundStyle(AppTheme.teal)
                             Text(SessionStore.formattedDuration(day.durationSeconds))
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReportText.caption)
                         }
                     }
                     .padding(.vertical, 2)
@@ -214,7 +285,7 @@ struct ParentReportView: View {
                 if report.strengths.isEmpty {
                     Text("Strengths will appear after more practice sessions.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReportText.muted)
                 } else {
                     BulletedList(items: report.strengths)
                 }
@@ -224,7 +295,7 @@ struct ParentReportView: View {
                 if report.growthAreas.isEmpty {
                     Text("No specific growth areas identified — keep practicing!")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReportText.muted)
                 } else {
                     BulletedList(items: report.growthAreas)
                 }
@@ -233,7 +304,7 @@ struct ParentReportView: View {
             ReportCard(title: "Teacher Comments") {
                 Text(report.teacherComment)
                     .font(.body)
-                    .foregroundStyle(AppTheme.ink.opacity(0.9))
+                    .foregroundStyle(ReportText.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -248,12 +319,12 @@ struct ParentReportView: View {
     private var footerSection: some View {
         VStack(spacing: 8) {
             Text("This report is generated from on-device practice data. It aligns with common K–5 math standards and is intended as a family progress snapshot, not an official school transcript.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(ReportText.muted)
                 .multilineTextAlignment(.center)
             Text("Bradley Virtual Solutions, LLC")
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(ReportText.caption)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -298,10 +369,11 @@ private struct ReportRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReportText.muted)
             Spacer()
             Text(value)
                 .fontWeight(.medium)
+                .foregroundStyle(ReportText.ink)
                 .multilineTextAlignment(.trailing)
         }
         .font(.subheadline)
@@ -315,15 +387,19 @@ private struct MetricTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ReportText.muted)
             Text(value)
                 .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.ink)
+                .foregroundStyle(ReportText.ink)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(AppTheme.cream, in: RoundedRectangle(cornerRadius: 12))
+        .background(AppTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppTheme.ink.opacity(0.08), lineWidth: 1)
+        }
     }
 }
 
@@ -350,22 +426,35 @@ private struct GradeBadge: View {
 private struct ProficiencyBadge: View {
     let level: ProficiencyLevel
 
-    private var color: Color {
+    private var backgroundColor: Color {
         switch level {
-        case .exceeds: AppTheme.teal
-        case .meets: AppTheme.sunny.opacity(0.9)
-        case .approaching: AppTheme.coral.opacity(0.85)
-        case .beginning: AppTheme.ink.opacity(0.45)
+        case .exceeds: AppTheme.teal.opacity(0.22)
+        case .meets: AppTheme.sunny.opacity(0.42)
+        case .approaching: AppTheme.coral.opacity(0.24)
+        case .beginning: AppTheme.ink.opacity(0.1)
+        }
+    }
+
+    private var textColor: Color {
+        switch level {
+        case .exceeds: Color(red: 0.08, green: 0.48, blue: 0.45)
+        case .meets: AppTheme.ink
+        case .approaching: Color(red: 0.72, green: 0.22, blue: 0.18)
+        case .beginning: AppTheme.ink.opacity(0.82)
         }
     }
 
     var body: some View {
         Text(level.rawValue)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(AppTheme.ink)
+            .foregroundStyle(textColor)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(color.opacity(0.35), in: Capsule())
+            .background(backgroundColor, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(textColor.opacity(0.18), lineWidth: 1)
+            }
     }
 }
 
@@ -387,7 +476,7 @@ private struct SubjectGradeRow: View {
                     Spacer()
                     Text(subject.proficiency.shortLabel)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReportText.muted)
                 }
 
                 HStack(spacing: 12) {
@@ -398,7 +487,7 @@ private struct SubjectGradeRow: View {
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReportText.muted)
 
                 if subject.missedCount > 0 {
                     Text("\(subject.missedCount) needed extra support")
@@ -421,7 +510,7 @@ private struct BulletedList: View {
                         .foregroundStyle(AppTheme.teal)
                     Text(item)
                         .font(.subheadline)
-                        .foregroundStyle(AppTheme.ink.opacity(0.85))
+                        .foregroundStyle(ReportText.body)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

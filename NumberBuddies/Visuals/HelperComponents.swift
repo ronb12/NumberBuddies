@@ -1,5 +1,69 @@
 import SwiftUI
 
+struct AnimatedCounterDot: View {
+    let color: Color
+    let size: CGFloat
+    let index: Int
+    var animate: Bool = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+            .overlay {
+                Circle()
+                    .stroke(color.opacity(0.4), lineWidth: 1)
+            }
+            .scaleEffect(appeared ? 1 : 0.2)
+            .opacity(appeared ? 1 : 0)
+            .onAppear {
+                guard animate, !reduceMotion else {
+                    appeared = true
+                    return
+                }
+                withAnimation(
+                    .spring(response: 0.38, dampingFraction: 0.62)
+                        .delay(Double(index) * 0.045)
+                ) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+struct PictureHelperToggle: View {
+    @Binding var isOn: Bool
+    let accent: Color
+    var usesPaperWork: Bool = false
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Label {
+                Text(usesPaperWork ? "Show paper work" : "Show picture helper")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.ink)
+            } icon: {
+                Image(systemName: usesPaperWork ? "square.and.pencil" : "photo.on.rectangle.angled")
+                    .foregroundStyle(accent)
+            }
+        }
+        .tint(accent)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.white, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppTheme.ink.opacity(0.14), lineWidth: 1)
+        )
+        .colorScheme(.light)
+        .accessibilityLabel(usesPaperWork ? "Show paper work" : "Show picture helper")
+        .accessibilityValue(isOn ? "On" : "Off")
+    }
+}
+
 struct StoryHeader: View {
     let iconName: String
     let title: String
@@ -23,6 +87,8 @@ struct HelperStepLabel: View {
     let text: String
     var color: Color = AppTheme.ink
 
+    @State private var appeared = false
+
     var body: some View {
         Text(text)
             .font(.caption.weight(.bold))
@@ -30,21 +96,36 @@ struct HelperStepLabel: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(color.opacity(0.12), in: Capsule())
+            .scaleEffect(appeared ? 1 : 0.92)
+            .opacity(appeared ? 1 : 0)
+            .onAppear {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
+                    appeared = true
+                }
+            }
     }
 }
 
 struct HelperEquationStrip: View {
     let problem: MathProblem
     var compact: Bool = false
+    var revealAnswer: Bool = false
 
     var body: some View {
-        Text("\(problem.operandA) \(problem.operation.symbol) \(problem.operandB) = \(problem.answer)")
+        Text(equationText)
             .font(.system(size: compact ? 18 : 22, weight: .bold, design: .rounded))
             .foregroundStyle(AppTheme.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(AppTheme.color(for: problem.operation).opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-            .accessibilityLabel("The answer is \(problem.answer)")
+            .accessibilityLabel(revealAnswer ? "The answer is \(problem.answer)" : "Equation to solve")
+    }
+
+    private var equationText: String {
+        if revealAnswer {
+            return "\(problem.operandA) \(problem.operation.symbol) \(problem.operandB) = \(problem.answer)"
+        }
+        return "\(problem.operandA) \(problem.operation.symbol) \(problem.operandB) = ?"
     }
 }
 
@@ -87,13 +168,11 @@ struct MergedCounterView: View {
             ForEach(0..<rows, id: \.self) { row in
                 HStack(spacing: spacing) {
                     ForEach(dotsInRow(row), id: \.self) { index in
-                        Circle()
-                            .fill(color(for: index))
-                            .frame(width: dotSize, height: dotSize)
-                            .overlay {
-                                Circle()
-                                    .stroke(color(for: index).opacity(0.4), lineWidth: 1)
-                            }
+                        AnimatedCounterDot(
+                            color: color(for: index),
+                            size: dotSize,
+                            index: index
+                        )
                     }
                 }
             }
@@ -216,14 +295,17 @@ struct RemainingCounterView: View {
         let showCrossOut = story == nil && index >= total - remove
 
         ZStack {
-            Circle()
-                .fill(showCrossOut ? AppTheme.coral.opacity(0.15) : accent)
-                .frame(width: dotSize, height: dotSize)
+            AnimatedCounterDot(
+                color: showCrossOut ? AppTheme.coral.opacity(0.15) : accent,
+                size: dotSize,
+                index: index
+            )
 
             if showCrossOut {
                 Image(systemName: "xmark")
                     .font(.system(size: compact ? 7 : 9, weight: .black))
                     .foregroundStyle(AppTheme.coral.opacity(0.8))
+                    .transition(.scale.combined(with: .opacity))
             }
         }
     }

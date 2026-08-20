@@ -4,13 +4,13 @@ import SwiftUI
 enum PracticeMode: Hashable {
     case operation(MathOperation)
     case mixedReview
-    case timesTableChallenge(TimesTableChallengeKind)
+    case mathChallenge(MathChallengeKind)
 
     var title: String {
         switch self {
         case .operation(let op): op.title
         case .mixedReview: "Mixed Review"
-        case .timesTableChallenge(let kind): kind.title
+        case .mathChallenge(let kind): kind.title
         }
     }
 
@@ -18,7 +18,7 @@ enum PracticeMode: Hashable {
         switch self {
         case .operation(let op): op.iconName
         case .mixedReview: "shuffle"
-        case .timesTableChallenge(let kind): kind.iconName
+        case .mathChallenge(let kind): kind.iconName
         }
     }
 
@@ -26,14 +26,14 @@ enum PracticeMode: Hashable {
         switch self {
         case .operation(let op): AppTheme.color(for: op)
         case .mixedReview: AppTheme.purple
-        case .timesTableChallenge: AppTheme.sunny
+        case .mathChallenge(let kind): AppTheme.color(for: kind.operation)
         }
     }
 
     var progressOperation: MathOperation? {
         switch self {
         case .operation(let op): op
-        case .timesTableChallenge: .multiplication
+        case .mathChallenge(let kind): kind.operation
         case .mixedReview: nil
         }
     }
